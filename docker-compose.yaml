@@ -1,0 +1,52 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE}
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - N8N_RUNNERS_ENABLED=${N8N_RUNNERS_ENABLED}
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false  # safer on Windows
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./exports:/home/node/exports
+      - ./cloudflared_logs:/tunnel_logs:ro
+    restart: unless-stopped
+
+  # One-shot job to clear the log file
+  cloudflared_loginit:
+    image: busybox:latest
+    container_name: cloudflared-loginit
+    command: ["sh", "-c", "mkdir -p /logs && : > /logs/tunnel.log"]
+    volumes:
+      - ./cloudflared_logs:/logs
+    restart: no
+  
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    depends_on:
+      - n8n
+    # Quick tunnel (no account): generates a random *.trycloudflare.com URL
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --edge-ip-version
+      - auto
+      - --loglevel
+      - info
+      - --logfile
+      - /logs/tunnel.log                   # ← write to file
+      - --url
+      - http://n8n:5678
+    volumes:
+      - ./cloudflared_logs:/logs
+    restart: unless-stopped
+
+volumes:
+  n8n_data:

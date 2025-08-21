@@ -1,0 +1,4 @@
+﻿.env
+exports/
+n8n_data/
+cloudflared_logs/
